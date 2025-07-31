@@ -1,821 +1,375 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>EGS Van Mileage Tracker</title>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/3.9.1/chart.min.js"></script>
-    <style>
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
+ 
+import React, { useState, useEffect } from 'react';
+import { Car, User, MapPin, Fuel, Calendar, FileText, Download, Plus, TrendingUp, Clock } from 'lucide-react';
 
-        body {
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            min-height: 100vh;
-            color: #333;
-        }
+const VanMileageTracker = () => {
+  const [drivers, setDrivers] = useState(['Ijaz']);
+  const [selectedDriver, setSelectedDriver] = useState('Ijaz');
+  const [newDriverName, setNewDriverName] = useState('');
+  const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
+  const [showAddDriver, setShowAddDriver] = useState(false);
+  
+  // Form data
+  const [formData, setFormData] = useState({
+    startPoint: '',
+    startMileage: '',
+    destination: '',
+    endPoint: '',
+    endMileage: '',
+    fuelPrice: ''
+  });
 
-        .container {
-            max-width: 420px;
-            margin: 0 auto;
-            background: #fff;
-            min-height: 100vh;
-            box-shadow: 0 0 20px rgba(0,0,0,0.1);
-            position: relative;
-        }
+  // Mock data for demonstration
+  const [records, setRecords] = useState([
+    {
+      id: 1,
+      driver: 'Ijaz',
+      date: '2025-08-01',
+      startPoint: 'Depot Leeds',
+      startMileage: 15420,
+      destination: 'Manchester Office',
+      endPoint: 'Depot Leeds',
+      endMileage: 15498,
+      totalMiles: 78,
+      fuelPrice: 45.50
+    },
+    {
+      id: 2,
+      driver: 'Ijaz',
+      date: '2025-07-31',
+      startPoint: 'Depot Leeds',
+      startMileage: 15342,
+      destination: 'Birmingham Warehouse',
+      endPoint: 'Depot Leeds',
+      endMileage: 15420,
+      totalMiles: 78,
+      fuelPrice: 52.30
+    }
+  ]);
 
-        .header {
-            background: linear-gradient(135deg, #2c3e50, #3498db);
-            color: white;
-            padding: 20px;
-            text-align: center;
-            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
-        }
+  const handleInputChange = (field, value) => {
+    setFormData(prev => ({
+      ...prev,
+      [field]: value
+    }));
+  };
 
-        .header h1 {
-            font-size: 1.5rem;
-            margin-bottom: 5px;
-        }
+  const calculateTotalMiles = () => {
+    const start = parseFloat(formData.startMileage) || 0;
+    const end = parseFloat(formData.endMileage) || 0;
+    return end > start ? end - start : 0;
+  };
 
-        .header p {
-            opacity: 0.9;
-            font-size: 0.9rem;
-        }
+  const addDriver = () => {
+    if (newDriverName.trim() && !drivers.includes(newDriverName.trim())) {
+      setDrivers([...drivers, newDriverName.trim()]);
+      setNewDriverName('');
+      setShowAddDriver(false);
+    }
+  };
 
-        .nav-tabs {
-            display: flex;
-            background: #f8f9fa;
-            border-bottom: 1px solid #dee2e6;
-        }
+  const saveRecord = () => {
+    if (formData.startPoint && formData.startMileage && formData.endMileage) {
+      const newRecord = {
+        id: records.length + 1,
+        driver: selectedDriver,
+        date: selectedDate,
+        ...formData,
+        startMileage: parseFloat(formData.startMileage),
+        endMileage: parseFloat(formData.endMileage),
+        totalMiles: calculateTotalMiles(),
+        fuelPrice: parseFloat(formData.fuelPrice) || 0
+      };
+      setRecords([newRecord, ...records]);
+      setFormData({
+        startPoint: '',
+        startMileage: '',
+        destination: '',
+        endPoint: '',
+        endMileage: '',
+        fuelPrice: ''
+      });
+    }
+  };
 
-        .nav-tab {
-            flex: 1;
-            padding: 15px;
-            text-align: center;
-            background: none;
-            border: none;
-            cursor: pointer;
-            font-weight: 500;
-            color: #6c757d;
-            transition: all 0.3s ease;
-        }
+  // Analytics calculations
+  const getAnalytics = () => {
+    const today = new Date();
+    const thisWeekStart = new Date(today.setDate(today.getDate() - today.getDay()));
+    const thisMonthStart = new Date(today.getFullYear(), today.getMonth(), 1);
+    const thisYearStart = new Date(today.getFullYear(), 0, 1);
 
-        .nav-tab.active {
-            background: #007bff;
-            color: white;
-        }
+    const analytics = {
+      totalMiles: records.reduce((sum, record) => sum + record.totalMiles, 0),
+      weeklyMiles: records.filter(r => new Date(r.date) >= thisWeekStart).reduce((sum, record) => sum + record.totalMiles, 0),
+      monthlyMiles: records.filter(r => new Date(r.date) >= thisMonthStart).reduce((sum, record) => sum + record.totalMiles, 0),
+      yearlyMiles: records.filter(r => new Date(r.date) >= thisYearStart).reduce((sum, record) => sum + record.totalMiles, 0),
+      weeklyFuel: records.filter(r => new Date(r.date) >= thisWeekStart).reduce((sum, record) => sum + record.fuelPrice, 0),
+      totalFuel: records.reduce((sum, record) => sum + record.fuelPrice, 0)
+    };
 
-        .tab-content {
-            display: none;
-            padding: 20px;
-            min-height: calc(100vh - 200px);
-        }
+    return analytics;
+  };
 
-        .tab-content.active {
-            display: block;
-        }
+  const analytics = getAnalytics();
 
-        .form-group {
-            margin-bottom: 20px;
-        }
+  const exportData = (format) => {
+    // In a real app, this would generate actual Excel/PDF files
+    alert(`Exporting data as ${format.toUpperCase()}... (Feature would be implemented with libraries like xlsx or jsPDF)`);
+  };
 
-        .form-group label {
-            display: block;
-            margin-bottom: 8px;
-            font-weight: 600;
-            color: #2c3e50;
-        }
-
-        .form-control {
-            width: 100%;
-            padding: 12px;
-            border: 2px solid #e9ecef;
-            border-radius: 10px;
-            font-size: 16px;
-            transition: border-color 0.3s ease;
-        }
-
-        .form-control:focus {
-            outline: none;
-            border-color: #007bff;
-            box-shadow: 0 0 0 3px rgba(0,123,255,0.25);
-        }
-
-        .btn {
-            width: 100%;
-            padding: 15px;
-            background: linear-gradient(135deg, #28a745, #20c997);
-            color: white;
-            border: none;
-            border-radius: 10px;
-            font-size: 16px;
-            font-weight: 600;
-            cursor: pointer;
-            transition: transform 0.2s ease;
-        }
-
-        .btn:hover {
-            transform: translateY(-2px);
-        }
-
-        .btn:active {
-            transform: translateY(0);
-        }
-
-        .record-item {
-            background: #f8f9fa;
-            border-radius: 10px;
-            padding: 15px;
-            margin-bottom: 15px;
-            border-left: 4px solid #007bff;
-        }
-
-        .record-date {
-            font-weight: 600;
-            color: #2c3e50;
-            margin-bottom: 5px;
-        }
-
-        .record-details {
-            font-size: 0.9rem;
-            color: #6c757d;
-            line-height: 1.4;
-        }
-
-        .stats-grid {
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 15px;
-            margin-bottom: 20px;
-        }
-
-        .stat-card {
-            background: linear-gradient(135deg, #667eea, #764ba2);
-            color: white;
-            padding: 20px;
-            border-radius: 15px;
-            text-align: center;
-            box-shadow: 0 4px 15px rgba(102, 126, 234, 0.3);
-        }
-
-        .stat-value {
-            font-size: 1.8rem;
-            font-weight: 700;
-            margin-bottom: 5px;
-        }
-
-        .stat-label {
-            font-size: 0.8rem;
-            opacity: 0.9;
-        }
-
-        .chart-container {
-            background: white;
-            border-radius: 15px;
-            padding: 20px;
-            margin: 20px 0;
-            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
-        }
-
-        .chart-controls {
-            display: flex;
-            gap: 10px;
-            margin-bottom: 20px;
-            overflow-x: auto;
-        }
-
-        .chart-control {
-            padding: 8px 16px;
-            background: #e9ecef;
-            border: none;
-            border-radius: 20px;
-            cursor: pointer;
-            white-space: nowrap;
-            font-size: 0.85rem;
-            transition: all 0.3s ease;
-        }
-
-        .chart-control.active {
-            background: #007bff;
-            color: white;
-        }
-
-        .no-records {
-            text-align: center;
-            color: #6c757d;
-            padding: 40px 20px;
-        }
-
-        .success-message {
-            background: #d4edda;
-            color: #155724;
-            padding: 15px;
-            border-radius: 10px;
-            margin-bottom: 20px;
-            border: 1px solid #c3e6cb;
-        }
-
-        @media (max-width: 480px) {
-            .container {
-                max-width: 100%;
-            }
-            
-            .stats-grid {
-                grid-template-columns: 1fr;
-            }
-        }
-    </style>
-</head>
-<body>
-    <div class="container">
-        <div class="header">
-            <h1>EGS Van Tracker</h1>
-            <p>Van Reg: LC74 FWO</p>
+  return (
+    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 p-4">
+      <div className="max-w-md mx-auto bg-white rounded-2xl shadow-xl overflow-hidden">
+        {/* Header */}
+        <div className="bg-gradient-to-r from-blue-600 to-indigo-600 p-6 text-white">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center space-x-3">
+              <Car className="w-8 h-8" />
+              <div>
+                <h1 className="text-xl font-bold">Van Tracker</h1>
+                <p className="text-blue-100 text-sm">Mileage & Fuel Logger</p>
+              </div>
+            </div>
+            <Calendar className="w-6 h-6" />
+          </div>
         </div>
 
-        <div class="nav-tabs">
-            <button class="nav-tab active" onclick="switchTab('record')">Add Record</button>
-            <button class="nav-tab" onclick="switchTab('history')">History</button>
-            <button class="nav-tab" onclick="switchTab('dashboard')">Dashboard</button>
+        {/* Driver Selection */}
+        <div className="p-6 border-b border-gray-100">
+          <div className="flex items-center justify-between mb-4">
+            <label className="flex items-center text-gray-700 font-medium">
+              <User className="w-4 h-4 mr-2" />
+              Driver
+            </label>
+            <button
+              onClick={() => setShowAddDriver(!showAddDriver)}
+              className="text-blue-600 hover:text-blue-700"
+            >
+              <Plus className="w-5 h-5" />
+            </button>
+          </div>
+          
+          <select
+            value={selectedDriver}
+            onChange={(e) => setSelectedDriver(e.target.value)}
+            className="w-full p-3 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+          >
+            {drivers.map(driver => (
+              <option key={driver} value={driver}>{driver}</option>
+            ))}
+          </select>
+
+          {showAddDriver && (
+            <div className="mt-3 flex space-x-2">
+              <input
+                type="text"
+                value={newDriverName}
+                onChange={(e) => setNewDriverName(e.target.value)}
+                placeholder="New driver name"
+                className="flex-1 p-2 border border-gray-200 rounded-lg text-sm"
+              />
+              <button
+                onClick={addDriver}
+                className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm hover:bg-blue-700"
+              >
+                Add
+              </button>
+            </div>
+          )}
         </div>
 
-        <!-- Record Tab -->
-        <div id="record" class="tab-content active">
-            <div id="successMessage" class="success-message" style="display: none;">
-                Record added successfully!
-            </div>
-            
-            <form id="mileageForm">
-                <div class="form-group">
-                    <label for="driver">Driver Name</label>
-                    <select id="driver" class="form-control" required>
-                        <option value="Ijaz">Ijaz</option>
-                    </select>
-                </div>
-
-                <div class="form-group">
-                    <label for="visitDate">Date of Visit</label>
-                    <input type="date" id="visitDate" class="form-control" required>
-                </div>
-
-                <div class="form-group">
-                    <label for="startPoint">Starting Point</label>
-                    <select id="startPoint" class="form-control" required>
-                        <option value="Home">Home</option>
-                        <option value="Other">Other (specify)</option>
-                    </select>
-                </div>
-
-                <div class="form-group" id="customStartGroup" style="display: none;">
-                    <label for="customStart">Custom Starting Point</label>
-                    <input type="text" id="customStart" class="form-control" placeholder="Enter starting location">
-                </div>
-
-                <div class="form-group">
-                    <label for="startMileage">Starting Mileage</label>
-                    <input type="number" id="startMileage" class="form-control" placeholder="Enter starting mileage" required>
-                </div>
-
-                <div class="form-group">
-                    <label for="visitLocation">Visit Location</label>
-                    <input type="text" id="visitLocation" class="form-control" placeholder="e.g., Burger King - Leeds Branch" required>
-                </div>
-
-                <div class="form-group">
-                    <label for="endPoint">End Point</label>
-                    <select id="endPoint" class="form-control" required>
-                        <option value="Home">Home</option>
-                        <option value="Other">Other (specify)</option>
-                    </select>
-                </div>
-
-                <div class="form-group" id="customEndGroup" style="display: none;">
-                    <label for="customEnd">Custom End Point</label>
-                    <input type="text" id="customEnd" class="form-control" placeholder="Enter end location">
-                </div>
-
-                <div class="form-group">
-                    <label for="endMileage">End Mileage</label>
-                    <input type="number" id="endMileage" class="form-control" placeholder="Enter end mileage" required>
-                </div>
-
-                <div class="form-group">
-                    <label for="fuelPrice">Fuel Cost (£)</label>
-                    <input type="number" id="fuelPrice" class="form-control" placeholder="Enter fuel cost" step="0.01">
-                </div>
-
-                <div class="form-group">
-                    <label for="receiptPrice">Receipt Total (£)</label>
-                    <input type="number" id="receiptPrice" class="form-control" placeholder="Enter receipt total" step="0.01">
-                </div>
-
-                <button type="submit" class="btn">Add Record</button>
-            </form>
-
-            <div style="margin-top: 30px;">
-                <button type="button" class="btn" onclick="addNewDriver()" style="background: linear-gradient(135deg, #17a2b8, #138496);">
-                    Add New Driver
-                </button>
-            </div>
-
-            <div style="margin-top: 15px;">
-                <button type="button" class="btn" onclick="syncToGoogleSheets()" style="background: linear-gradient(135deg, #28a745, #20c997);">
-                    📊 Sync to Google Sheets
-                </button>
-            </div>
+        {/* Date Selection */}
+        <div className="p-6 border-b border-gray-100">
+          <label className="block text-gray-700 font-medium mb-3">
+            <Calendar className="w-4 h-4 inline mr-2" />
+            Date
+          </label>
+          <input
+            type="date"
+            value={selectedDate}
+            onChange={(e) => setSelectedDate(e.target.value)}
+            className="w-full p-3 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+          />
         </div>
 
-        <!-- History Tab -->
-        <div id="history" class="tab-content">
-            <div id="recordsList">
-                <div class="no-records">
-                    No records found. Add your first mileage record!
-                </div>
+        {/* Mileage Form */}
+        <div className="p-6 space-y-4">
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="block text-gray-700 font-medium mb-2 text-sm">
+                <MapPin className="w-4 h-4 inline mr-1" />
+                Start Point
+              </label>
+              <input
+                type="text"
+                value={formData.startPoint}
+                onChange={(e) => handleInputChange('startPoint', e.target.value)}
+                placeholder="e.g., Depot Leeds"
+                className="w-full p-3 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
+              />
             </div>
+            <div>
+              <label className="block text-gray-700 font-medium mb-2 text-sm">
+                Start Mileage
+              </label>
+              <input
+                type="number"
+                value={formData.startMileage}
+                onChange={(e) => handleInputChange('startMileage', e.target.value)}
+                placeholder="15420"
+                className="w-full p-3 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
+              />
+            </div>
+          </div>
+
+          <div>
+            <label className="block text-gray-700 font-medium mb-2 text-sm">
+              <MapPin className="w-4 h-4 inline mr-1" />
+              Destination
+            </label>
+            <input
+              type="text"
+              value={formData.destination}
+              onChange={(e) => handleInputChange('destination', e.target.value)}
+              placeholder="e.g., Manchester Office"
+              className="w-full p-3 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
+            />
+          </div>
+
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="block text-gray-700 font-medium mb-2 text-sm">
+                End Point
+              </label>
+              <input
+                type="text"
+                value={formData.endPoint}
+                onChange={(e) => handleInputChange('endPoint', e.target.value)}
+                placeholder="e.g., Depot Leeds"
+                className="w-full p-3 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
+              />
+            </div>
+            <div>
+              <label className="block text-gray-700 font-medium mb-2 text-sm">
+                End Mileage
+              </label>
+              <input
+                type="number"
+                value={formData.endMileage}
+                onChange={(e) => handleInputChange('endMileage', e.target.value)}
+                placeholder="15498"
+                className="w-full p-3 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
+              />
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="block text-gray-700 font-medium mb-2 text-sm">
+                <Fuel className="w-4 h-4 inline mr-1" />
+                Fuel Price (£)
+              </label>
+              <input
+                type="number"
+                step="0.01"
+                value={formData.fuelPrice}
+                onChange={(e) => handleInputChange('fuelPrice', e.target.value)}
+                placeholder="45.50"
+                className="w-full p-3 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
+              />
+            </div>
+            <div>
+              <label className="block text-gray-700 font-medium mb-2 text-sm">
+                Total Miles
+              </label>
+              <div className="w-full p-3 bg-gray-50 border border-gray-200 rounded-lg text-sm text-gray-600">
+                {calculateTotalMiles()} miles
+              </div>
+            </div>
+          </div>
+
+          <button
+            onClick={saveRecord}
+            className="w-full bg-gradient-to-r from-blue-600 to-indigo-600 text-white py-3 rounded-lg font-medium hover:from-blue-700 hover:to-indigo-700 transition-all duration-200 shadow-lg"
+          >
+            Save Record
+          </button>
         </div>
 
-        <!-- Dashboard Tab -->
-        <div id="dashboard" class="tab-content">
-            <div class="stats-grid">
-                <div class="stat-card">
-                    <div class="stat-value" id="totalVisits">0</div>
-                    <div class="stat-label">Total Visits</div>
-                </div>
-                <div class="stat-card">
-                    <div class="stat-value" id="totalMileage">0</div>
-                    <div class="stat-label">Total Miles</div>
-                </div>
-                <div class="stat-card">
-                    <div class="stat-value" id="totalFuel">£0</div>
-                    <div class="stat-label">Total Fuel Cost</div>
-                </div>
-                <div class="stat-card">
-                    <div class="stat-value" id="avgCost">£0</div>
-                    <div class="stat-label">Avg Cost/Visit</div>
-                </div>
+        {/* Analytics Dashboard */}
+        <div className="p-6 bg-gray-50 border-t border-gray-100">
+          <h3 className="text-lg font-bold text-gray-800 mb-4 flex items-center">
+            <TrendingUp className="w-5 h-5 mr-2" />
+            Analytics
+          </h3>
+          
+          <div className="grid grid-cols-2 gap-3 mb-4">
+            <div className="bg-white p-4 rounded-lg shadow-sm">
+              <div className="text-xs text-gray-500 uppercase tracking-wide">Weekly Miles</div>
+              <div className="text-xl font-bold text-blue-600">{analytics.weeklyMiles}</div>
             </div>
+            <div className="bg-white p-4 rounded-lg shadow-sm">
+              <div className="text-xs text-gray-500 uppercase tracking-wide">Monthly Miles</div>
+              <div className="text-xl font-bold text-green-600">{analytics.monthlyMiles}</div>
+            </div>
+            <div className="bg-white p-4 rounded-lg shadow-sm">
+              <div className="text-xs text-gray-500 uppercase tracking-wide">Weekly Fuel</div>
+              <div className="text-xl font-bold text-purple-600">£{analytics.weeklyFuel.toFixed(2)}</div>
+            </div>
+            <div className="bg-white p-4 rounded-lg shadow-sm">
+              <div className="text-xs text-gray-500 uppercase tracking-wide">Total Miles</div>
+              <div className="text-xl font-bold text-orange-600">{analytics.totalMiles}</div>
+            </div>
+          </div>
 
-            <div class="chart-controls">
-                <button class="chart-control active" onclick="updateChart('weekly')">Weekly</button>
-                <button class="chart-control" onclick="updateChart('monthly')">Monthly</button>
-                <button class="chart-control" onclick="updateChart('3monthly')">3 Monthly</button>
-                <button class="chart-control" onclick="updateChart('yearly')">Yearly</button>
-            </div>
-
-            <div class="chart-container">
-                <canvas id="mileageChart" width="400" height="200"></canvas>
-            </div>
-
-            <div class="chart-container">
-                <canvas id="fuelChart" width="400" height="200"></canvas>
-            </div>
+          {/* Export Buttons */}
+          <div className="flex space-x-2">
+            <button
+              onClick={() => exportData('excel')}
+              className="flex-1 bg-green-600 text-white py-2 px-4 rounded-lg text-sm font-medium hover:bg-green-700 flex items-center justify-center"
+            >
+              <Download className="w-4 h-4 mr-1" />
+              Excel
+            </button>
+            <button
+              onClick={() => exportData('pdf')}
+              className="flex-1 bg-red-600 text-white py-2 px-4 rounded-lg text-sm font-medium hover:bg-red-700 flex items-center justify-center"
+            >
+              <FileText className="w-4 h-4 mr-1" />
+              PDF
+            </button>
+          </div>
         </div>
+
+        {/* Recent Records */}
+        <div className="p-6">
+          <h3 className="text-lg font-bold text-gray-800 mb-4 flex items-center">
+            <Clock className="w-5 h-5 mr-2" />
+            Recent Records
+          </h3>
+          
+          <div className="space-y-3 max-h-64 overflow-y-auto">
+            {records.map(record => (
+              <div key={record.id} className="bg-white border border-gray-200 rounded-lg p-4 shadow-sm">
+                <div className="flex justify-between items-start mb-2">
+                  <div className="text-sm font-medium text-gray-800">{record.driver}</div>
+                  <div className="text-xs text-gray-500">{record.date}</div>
+                </div>
+                <div className="text-sm text-gray-600 mb-1">
+                  {record.startPoint} → {record.destination}
+                </div>
+                <div className="flex justify-between text-sm">
+                  <span className="text-blue-600 font-medium">{record.totalMiles} miles</span>
+                  <span className="text-green-600 font-medium">£{record.fuelPrice.toFixed(2)}</span>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
     </div>
+  );
+};
 
-    <script>
-        // Load Google API script dynamically
-        function loadGoogleAPI() {
-            return new Promise((resolve, reject) => {
-                // Check if already loaded
-                if (window.gapi) {
-                    resolve();
-                    return;
-                }
-
-                // Create script element
-                const script = document.createElement('script');
-                script.src = 'https://apis.google.com/js/api.js';
-                script.onload = () => {
-                    console.log('Google API script loaded');
-                    resolve();
-                };
-                script.onerror = () => {
-                    console.error('Failed to load Google API script');
-                    reject(new Error('Failed to load Google API'));
-                };
-                document.head.appendChild(script);
-            });
-        }
-        // Global variables
-        let records = JSON.parse(localStorage.getItem('mileageRecords') || '[]');
-        let drivers = JSON.parse(localStorage.getItem('drivers') || '["Ijaz"]');
-        let mileageChart, fuelChart;
-
-        // Initialize the app
-        document.addEventListener('DOMContentLoaded', async function() {
-            // Set today's date as default
-            document.getElementById('visitDate').valueAsDate = new Date();
-            
-            // Load drivers
-            loadDrivers();
-            
-            // Setup event listeners
-            setupEventListeners();
-            
-            // Load history and dashboard
-            loadHistory();
-            updateDashboard();
-            initCharts();
-            
-            // Initialize Google Sheets API
-            console.log('🚀 Starting Google Sheets API initialization...');
-            await initGoogleSheets();
-        });
-
-        function setupEventListeners() {
-            // Form submission
-            document.getElementById('mileageForm').addEventListener('submit', handleFormSubmit);
-            
-            // Custom location toggles
-            document.getElementById('startPoint').addEventListener('change', function() {
-                document.getElementById('customStartGroup').style.display = 
-                    this.value === 'Other' ? 'block' : 'none';
-            });
-            
-            document.getElementById('endPoint').addEventListener('change', function() {
-                document.getElementById('customEndGroup').style.display = 
-                    this.value === 'Other' ? 'block' : 'none';
-            });
-        }
-
-        function switchTab(tabName) {
-            // Hide all tabs
-            document.querySelectorAll('.tab-content').forEach(tab => {
-                tab.classList.remove('active');
-            });
-            
-            // Remove active class from all nav tabs
-            document.querySelectorAll('.nav-tab').forEach(tab => {
-                tab.classList.remove('active');
-            });
-            
-            // Show selected tab
-            document.getElementById(tabName).classList.add('active');
-            event.target.classList.add('active');
-            
-            // Update dashboard when switching to it
-            if (tabName === 'dashboard') {
-                updateDashboard();
-                updateChart('weekly');
-            }
-        }
-
-        function handleFormSubmit(e) {
-            e.preventDefault();
-            
-            const formData = new FormData(e.target);
-            const startPoint = document.getElementById('startPoint').value === 'Other' 
-                ? document.getElementById('customStart').value 
-                : document.getElementById('startPoint').value;
-            const endPoint = document.getElementById('endPoint').value === 'Other' 
-                ? document.getElementById('customEnd').value 
-                : document.getElementById('endPoint').value;
-            
-            const record = {
-                id: Date.now(),
-                driver: document.getElementById('driver').value,
-                date: document.getElementById('visitDate').value,
-                startPoint: startPoint,
-                startMileage: parseInt(document.getElementById('startMileage').value),
-                visitLocation: document.getElementById('visitLocation').value,
-                endPoint: endPoint,
-                endMileage: parseInt(document.getElementById('endMileage').value),
-                fuelPrice: parseFloat(document.getElementById('fuelPrice').value) || 0,
-                receiptPrice: parseFloat(document.getElementById('receiptPrice').value) || 0,
-                totalMiles: parseInt(document.getElementById('endMileage').value) - parseInt(document.getElementById('startMileage').value)
-            };
-            
-            records.push(record);
-            localStorage.setItem('mileageRecords', JSON.stringify(records));
-            
-            // Show success message
-            document.getElementById('successMessage').style.display = 'block';
-            setTimeout(() => {
-                document.getElementById('successMessage').style.display = 'none';
-            }, 3000);
-            
-            // Reset form
-            e.target.reset();
-            document.getElementById('visitDate').valueAsDate = new Date();
-            
-            // Update displays
-            loadHistory();
-            updateDashboard();
-        }
-
-        function loadDrivers() {
-            const driverSelect = document.getElementById('driver');
-            driverSelect.innerHTML = '';
-            drivers.forEach(driver => {
-                const option = document.createElement('option');
-                option.value = driver;
-                option.textContent = driver;
-                driverSelect.appendChild(option);
-            });
-        }
-
-        function addNewDriver() {
-            const driverName = prompt('Enter new driver name:');
-            if (driverName && !drivers.includes(driverName)) {
-                drivers.push(driverName);
-                localStorage.setItem('drivers', JSON.stringify(drivers));
-                loadDrivers();
-            }
-        }
-
-        function loadHistory() {
-            const recordsList = document.getElementById('recordsList');
-            
-            if (records.length === 0) {
-                recordsList.innerHTML = '<div class="no-records">No records found. Add your first mileage record!</div>';
-                return;
-            }
-            
-            const sortedRecords = records.sort((a, b) => new Date(b.date) - new Date(a.date));
-            recordsList.innerHTML = sortedRecords.map(record => `
-                <div class="record-item">
-                    <div class="record-date">${new Date(record.date).toLocaleDateString()}</div>
-                    <div class="record-details">
-                        <strong>Driver:</strong> ${record.driver}<br>
-                        <strong>Journey:</strong> ${record.startPoint} → ${record.visitLocation} → ${record.endPoint}<br>
-                        <strong>Miles:</strong> ${record.totalMiles} (${record.startMileage} - ${record.endMileage})<br>
-                        <strong>Fuel Cost:</strong> £${record.fuelPrice.toFixed(2)}<br>
-                        <strong>Receipt Total:</strong> £${record.receiptPrice.toFixed(2)}
-                    </div>
-                </div>
-            `).join('');
-        }
-
-        function updateDashboard() {
-            const totalVisits = records.length;
-            const totalMileage = records.reduce((sum, record) => sum + record.totalMiles, 0);
-            const totalFuel = records.reduce((sum, record) => sum + record.fuelPrice, 0);
-            const avgCost = totalVisits > 0 ? totalFuel / totalVisits : 0;
-            
-            document.getElementById('totalVisits').textContent = totalVisits;
-            document.getElementById('totalMileage').textContent = totalMileage;
-            document.getElementById('totalFuel').textContent = `£${totalFuel.toFixed(2)}`;
-            document.getElementById('avgCost').textContent = `£${avgCost.toFixed(2)}`;
-        }
-
-        function initCharts() {
-            const mileageCtx = document.getElementById('mileageChart').getContext('2d');
-            const fuelCtx = document.getElementById('fuelChart').getContext('2d');
-            
-            mileageChart = new Chart(mileageCtx, {
-                type: 'bar',
-                data: {
-                    labels: [],
-                    datasets: [{
-                        label: 'Miles',
-                        data: [],
-                        backgroundColor: 'rgba(54, 162, 235, 0.5)',
-                        borderColor: 'rgba(54, 162, 235, 1)',
-                        borderWidth: 1
-                    }]
-                },
-                options: {
-                    responsive: true,
-                    scales: {
-                        y: {
-                            beginAtZero: true
-                        }
-                    }
-                }
-            });
-            
-            fuelChart = new Chart(fuelCtx, {
-                type: 'line',
-                data: {
-                    labels: [],
-                    datasets: [{
-                        label: 'Fuel Cost (£)',
-                        data: [],
-                        backgroundColor: 'rgba(255, 99, 132, 0.2)',
-                        borderColor: 'rgba(255, 99, 132, 1)',
-                        borderWidth: 2,
-                        fill: true
-                    }]
-                },
-                options: {
-                    responsive: true,
-                    scales: {
-                        y: {
-                            beginAtZero: true
-                        }
-                    }
-                }
-            });
-        }
-
-        function updateChart(period) {
-            // Update active button
-            document.querySelectorAll('.chart-control').forEach(btn => btn.classList.remove('active'));
-            event.target.classList.add('active');
-            
-            const data = getChartData(period);
-            
-            mileageChart.data.labels = data.labels;
-            mileageChart.data.datasets[0].data = data.mileage;
-            mileageChart.update();
-            
-            fuelChart.data.labels = data.labels;
-            fuelChart.data.datasets[0].data = data.fuel;
-            fuelChart.update();
-        }
-
-        function getChartData(period) {
-            const now = new Date();
-            let startDate, groupBy;
-            
-            switch(period) {
-                case 'weekly':
-                    startDate = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
-                    groupBy = 'day';
-                    break;
-                case 'monthly':
-                    startDate = new Date(now.getFullYear(), now.getMonth() - 1, 1);
-                    groupBy = 'week';
-                    break;
-                case '3monthly':
-                    startDate = new Date(now.getFullYear(), now.getMonth() - 3, 1);
-                    groupBy = 'month';
-                    break;
-                case 'yearly':
-                    startDate = new Date(now.getFullYear() - 1, 0, 1);
-                    groupBy = 'month';
-                    break;
-            }
-            
-            const filteredRecords = records.filter(record => 
-                new Date(record.date) >= startDate
-            );
-            
-            // Group records by period
-            const grouped = {};
-            filteredRecords.forEach(record => {
-                const date = new Date(record.date);
-                let key;
-                
-                if (groupBy === 'day') {
-                    key = date.toLocaleDateString();
-                } else if (groupBy === 'week') {
-                    const weekStart = new Date(date.setDate(date.getDate() - date.getDay()));
-                    key = weekStart.toLocaleDateString();
-                } else if (groupBy === 'month') {
-                    key = date.toLocaleDateString('en-US', { year: 'numeric', month: 'short' });
-                }
-                
-                if (!grouped[key]) {
-                    grouped[key] = { mileage: 0, fuel: 0 };
-                }
-                grouped[key].mileage += record.totalMiles;
-                grouped[key].fuel += record.fuelPrice;
-            });
-            
-            const labels = Object.keys(grouped).sort();
-            const mileage = labels.map(label => grouped[label].mileage);
-            const fuel = labels.map(label => grouped[label].fuel);
-            
-            return { labels, mileage, fuel };
-        }
-
-        // Google Sheets Configuration
-        const SHEET_ID = '12eG61Jv_H0YPnZ535FUu94d25u5maDL0HFRXHYSizzE';
-        const API_KEY = 'AIzaSyBpGBMbbRL08QGe3wFtSBKufMlvoxKzodI';
-        const RANGE = 'Sheet1!A:J';
-
-        // Initialize Google Sheets API
-        async function initGoogleSheets() {
-            try {
-                // Load Google API first
-                await loadGoogleAPI();
-                
-                console.log('Loading Google API client...');
-                
-                // Load the client
-                await new Promise((resolve, reject) => {
-                    gapi.load('client', {
-                        callback: resolve,
-                        onerror: reject
-                    });
-                });
-
-                console.log('Initializing Google Sheets API...');
-                
-                // Initialize the client
-                await gapi.client.init({
-                    apiKey: API_KEY,
-                    discoveryDocs: ['https://sheets.googleapis.com/$discovery/rest?version=v4']
-                });
-                
-                console.log('✅ Google Sheets API initialized successfully');
-                
-            } catch (error) {
-                console.error('❌ Failed to initialize Google Sheets API:', error);
-            }
-        }
-
-        // Sync data to Google Sheets
-        async function syncToGoogleSheets() {
-            if (!SHEET_ID || SHEET_ID === 'YOUR_GOOGLE_SHEET_ID_HERE') {
-                alert('Please configure your Google Sheets API credentials first!\n\nSteps:\n1. Get Google Sheets API key\n2. Replace SHEET_ID and API_KEY in the code\n3. Make sure your sheet is shared properly');
-                return;
-            }
-
-            // Check if Google API is loaded and initialized
-            if (typeof gapi === 'undefined' || !gapi.client || !gapi.client.sheets) {
-                alert('⚠️ Google Sheets API is not ready.\n\nTrying to initialize now...');
-                console.log('Re-initializing Google Sheets API...');
-                await initGoogleSheets();
-                
-                // Check again
-                if (typeof gapi === 'undefined' || !gapi.client || !gapi.client.sheets) {
-                    alert('❌ Google Sheets API failed to initialize.\n\nPlease check:\n1. Internet connection\n2. API key is valid\n3. Google Sheets API is enabled');
-                    return;
-                }
-            }
-
-            if (records.length === 0) {
-                alert('📝 No records to sync. Please add some mileage records first.');
-                return;
-            }
-
-            try {
-                // Show loading message
-                const syncButton = event.target;
-                const originalText = syncButton.textContent;
-                syncButton.textContent = '⏳ Syncing...';
-                syncButton.disabled = true;
-
-                console.log(`📊 Syncing ${records.length} records to Google Sheets...`);
-
-                // Prepare data for Google Sheets
-                const sheetData = records.map(record => [
-                    record.date,
-                    record.driver,
-                    record.startPoint,
-                    record.startMileage,
-                    record.visitLocation,
-                    record.endPoint,
-                    record.endMileage,
-                    record.totalMiles,
-                    record.fuelPrice,
-                    record.receiptPrice
-                ]);
-
-                console.log('📤 Prepared data:', sheetData);
-
-                // Clear existing data (except headers)
-                console.log('🧹 Clearing existing data...');
-                await gapi.client.sheets.spreadsheets.values.clear({
-                    spreadsheetId: SHEET_ID,
-                    range: 'Sheet1!A2:J'
-                });
-
-                // Add new data
-                console.log('📝 Adding new data...');
-                const response = await gapi.client.sheets.spreadsheets.values.update({
-                    spreadsheetId: SHEET_ID,
-                    range: 'Sheet1!A2',
-                    valueInputOption: 'RAW',
-                    resource: {
-                        values: sheetData
-                    }
-                });
-
-                console.log('✅ Sync successful:', response);
-                alert(`✅ Success!\n\n📊 ${records.length} records synced to Google Sheets\n🔗 Check your sheet to see the data`);
-
-            } catch (error) {
-                console.error('❌ Sync failed:', error);
-                
-                let errorMessage = '❌ Failed to sync data to Google Sheets.\n\n';
-                
-                if (error.status === 403) {
-                    errorMessage += '🔒 Permission denied:\n• Make sure your Google Sheet is shared publicly\n• Check API key restrictions\n• Verify Google Sheets API is enabled';
-                } else if (error.status === 404) {
-                    errorMessage += '🔍 Sheet not found:\n• Check your Sheet ID is correct\n• Make sure the sheet exists';
-                } else if (error.status === 400) {
-                    errorMessage += '⚠️ Bad request:\n• Check sheet range (Sheet1!A:J)\n• Verify data format';
-                } else {
-                    errorMessage += '🛠️ Error details:\n' + (error.result?.error?.message || error.message || 'Unknown error');
-                }
-                
-                alert(errorMessage);
-            } finally {
-                // Reset button
-                const syncButton = document.querySelector('button[onclick="syncToGoogleSheets()"]');
-                if (syncButton) {
-                    syncButton.textContent = originalText;
-                    syncButton.disabled = false;
-                }
-            }
-        }
-    </script>
-</body>
-</html>
+export default VanMileageTracker;
