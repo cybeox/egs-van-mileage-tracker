@@ -526,37 +526,82 @@
         // Application state
         let drivers = ['Ijaz'];
         let selectedDriver = 'Ijaz';
-        let records = [
-            {
-                id: 1,
-                driver: 'Ijaz',
-                date: '2025-08-01',
-                startPoint: 'Depot Leeds',
-                startMileage: 15420,
-                destination: 'Manchester Office',
-                endPoint: 'Depot Leeds',
-                endMileage: 15498,
-                totalMiles: 78,
-                fuelPrice: 45.50
-            },
-            {
-                id: 2,
-                driver: 'Ijaz',
-                date: '2025-07-31',
-                startPoint: 'Depot Leeds',
-                startMileage: 15342,
-                destination: 'Birmingham Warehouse',
-                endPoint: 'Depot Leeds',
-                endMileage: 15420,
-                totalMiles: 78,
-                fuelPrice: 52.30
+        let records = [];
+
+        // Storage functions
+        function saveToStorage() {
+            try {
+                localStorage.setItem('vanTrackerDrivers', JSON.stringify(drivers));
+                localStorage.setItem('vanTrackerRecords', JSON.stringify(records));
+                localStorage.setItem('vanTrackerSelectedDriver', selectedDriver);
+            } catch (error) {
+                console.error('Error saving to storage:', error);
             }
-        ];
+        }
+
+        function loadFromStorage() {
+            try {
+                // Load drivers
+                const savedDrivers = localStorage.getItem('vanTrackerDrivers');
+                if (savedDrivers) {
+                    drivers = JSON.parse(savedDrivers);
+                }
+
+                // Load records
+                const savedRecords = localStorage.getItem('vanTrackerRecords');
+                if (savedRecords) {
+                    records = JSON.parse(savedRecords);
+                } else {
+                    // Add sample data only if no saved records exist
+                    records = [
+                        {
+                            id: 1,
+                            driver: 'Ijaz',
+                            date: '2025-08-01',
+                            startPoint: 'Depot Leeds',
+                            startMileage: 15420,
+                            destination: 'Manchester Office',
+                            endPoint: 'Depot Leeds',
+                            endMileage: 15498,
+                            totalMiles: 78,
+                            fuelPrice: 45.50
+                        },
+                        {
+                            id: 2,
+                            driver: 'Ijaz',
+                            date: '2025-07-31',
+                            startPoint: 'Depot Leeds',
+                            startMileage: 15342,
+                            destination: 'Birmingham Warehouse',
+                            endPoint: 'Depot Leeds',
+                            endMileage: 15420,
+                            totalMiles: 78,
+                            fuelPrice: 52.30
+                        }
+                    ];
+                    saveToStorage();
+                }
+
+                // Load selected driver
+                const savedSelectedDriver = localStorage.getItem('vanTrackerSelectedDriver');
+                if (savedSelectedDriver && drivers.includes(savedSelectedDriver)) {
+                    selectedDriver = savedSelectedDriver;
+                }
+            } catch (error) {
+                console.error('Error loading from storage:', error);
+            }
+        }
 
         // Initialize the app
         function init() {
+            // Load data from storage first
+            loadFromStorage();
+            
             // Set today's date
             document.getElementById('selectedDate').value = new Date().toISOString().split('T')[0];
+            
+            // Update driver select dropdown
+            updateDriverSelect();
             
             // Update analytics and records
             updateAnalytics();
@@ -578,6 +623,7 @@
             if (newName && !drivers.includes(newName)) {
                 drivers.push(newName);
                 updateDriverSelect();
+                saveToStorage(); // Save to storage
                 nameInput.value = '';
                 toggleAddDriver();
                 showToast('Driver added successfully!');
@@ -600,6 +646,7 @@
 
         function selectDriver() {
             selectedDriver = document.getElementById('driverSelect').value;
+            saveToStorage(); // Save selected driver
         }
 
         function calculateMiles() {
@@ -629,7 +676,7 @@
             }
 
             const newRecord = {
-                id: records.length + 1,
+                id: Date.now(), // Use timestamp for unique ID
                 driver: selectedDriver,
                 date: selectedDate,
                 startPoint: startPoint,
@@ -642,6 +689,7 @@
             };
 
             records.unshift(newRecord);
+            saveToStorage(); // Save to storage
             clearForm();
             updateAnalytics();
             renderRecords();
@@ -716,20 +764,90 @@
         }
 
         function exportData(format) {
-            // In a real implementation, this would generate actual files
-            showToast(`Exporting data as ${format.toUpperCase()}... (Feature would be implemented with export libraries)`);
+            if (records.length === 0) {
+                showToast('No data to export', 'error');
+                return;
+            }
+
+            if (format === 'excel') {
+                exportToCSV();
+            } else if (format === 'pdf') {
+                showToast('PDF export feature coming soon! For now, use Excel export or print this page.', 'info');
+            }
+        }
+
+        function exportToCSV() {
+            const headers = ['Driver', 'Date', 'Start Point', 'Start Mileage', 'Destination', 'End Point', 'End Mileage', 'Total Miles', 'Fuel Price (£)'];
+            const csvContent = [
+                headers.join(','),
+                ...records.map(record => [
+                    record.driver,
+                    record.date,
+                    `"${record.startPoint}"`,
+                    record.startMileage,
+                    `"${record.destination}"`,
+                    `"${record.endPoint}"`,
+                    record.endMileage,
+                    record.totalMiles,
+                    record.fuelPrice.toFixed(2)
+                ].join(','))
+            ].join('\n');
+
+            const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+            const link = document.createElement('a');
+            const url = URL.createObjectURL(blob);
+            link.setAttribute('href', url);
+            link.setAttribute('download', `van_mileage_records_${new Date().toISOString().split('T')[0]}.csv`);
+            link.style.visibility = 'hidden';
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+            
+            showToast('Data exported successfully!');
         }
 
         function showToast(message, type = 'success') {
             const toast = document.getElementById('toast');
             toast.textContent = message;
-            toast.style.background = type === 'error' ? '#ef4444' : '#10b981';
+            if (type === 'error') {
+                toast.style.background = '#ef4444';
+            } else if (type === 'info') {
+                toast.style.background = '#3b82f6';
+            } else {
+                toast.style.background = '#10b981';
+            }
             toast.classList.add('show');
             
             setTimeout(() => {
                 toast.classList.remove('show');
             }, 3000);
         }
+
+        // Add a function to clear all data (for testing/reset)
+        function clearAllData() {
+            if (confirm('Are you sure you want to clear all data? This cannot be undone.')) {
+                localStorage.removeItem('vanTrackerDrivers');
+                localStorage.removeItem('vanTrackerRecords');
+                localStorage.removeItem('vanTrackerSelectedDriver');
+                location.reload();
+            }
+        }
+
+        // Add keyboard shortcuts
+        document.addEventListener('keydown', function(e) {
+            // Ctrl+S or Cmd+S to save record
+            if ((e.ctrlKey || e.metaKey) && e.key === 's') {
+                e.preventDefault();
+                saveRecord();
+            }
+            // Escape to close add driver form
+            if (e.key === 'Escape') {
+                const form = document.getElementById('addDriverForm');
+                if (form.classList.contains('show')) {
+                    toggleAddDriver();
+                }
+            }
+        });
 
         // Initialize the app when page loads
         document.addEventListener('DOMContentLoaded', init);
