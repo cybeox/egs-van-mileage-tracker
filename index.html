@@ -321,6 +321,12 @@
                     Add New Driver
                 </button>
             </div>
+
+            <div style="margin-top: 15px;">
+                <button type="button" class="btn" onclick="syncToGoogleSheets()" style="background: linear-gradient(135deg, #28a745, #20c997);">
+                    📊 Sync to Google Sheets
+                </button>
+            </div>
         </div>
 
         <!-- History Tab -->
@@ -370,6 +376,7 @@
         </div>
     </div>
 
+    <script src="https://apis.google.com/js/api.js"></script>
     <script>
         // Global variables
         let records = JSON.parse(localStorage.getItem('mileageRecords') || '[]');
@@ -391,6 +398,11 @@
             loadHistory();
             updateDashboard();
             initCharts();
+            
+            // Initialize Google Sheets API after a short delay to ensure gapi is loaded
+            setTimeout(() => {
+                initGoogleSheets();
+            }, 2000);
         });
 
         function setupEventListeners() {
@@ -651,11 +663,111 @@
             return { labels, mileage, fuel };
         }
 
-        // Google Sheets Integration (placeholder)
-        function syncToGoogleSheets() {
-            // This would connect to Google Sheets API
-            // Implementation depends on your Google Sheets setup
-            console.log('Syncing to Google Sheets...', records);
+        // Google Sheets Configuration
+        const SHEET_ID = '12eG61Jv_H0YPnZ535FUu94d25u5maDL0HFRXHYSizzE';
+        const API_KEY = 'AIzaSyBpGBMbbRL08QGe3wFtSBKufMlvoxKzodI';
+        const RANGE = 'Sheet1!A:J';
+
+        // Initialize Google Sheets API
+        function initGoogleSheets() {
+            // Check if gapi is loaded
+            if (typeof gapi === 'undefined') {
+                console.log('Google API not loaded yet, waiting...');
+                setTimeout(initGoogleSheets, 1000); // Retry after 1 second
+                return;
+            }
+
+            gapi.load('client', async () => {
+                try {
+                    await gapi.client.init({
+                        apiKey: API_KEY,
+                        discoveryDocs: ['https://sheets.googleapis.com/$discovery/rest?version=v4']
+                    });
+                    console.log('Google Sheets API initialized successfully');
+                } catch (error) {
+                    console.error('Failed to initialize Google Sheets API:', error);
+                }
+            });
+        }
+
+        // Sync data to Google Sheets
+        async function syncToGoogleSheets() {
+            if (!SHEET_ID || SHEET_ID === 'YOUR_GOOGLE_SHEET_ID_HERE') {
+                alert('Please configure your Google Sheets API credentials first!\n\nSteps:\n1. Get Google Sheets API key\n2. Replace SHEET_ID and API_KEY in the code\n3. Make sure your sheet is shared properly');
+                return;
+            }
+
+            // Check if Google API is loaded
+            if (typeof gapi === 'undefined') {
+                alert('Google Sheets API is not loaded. Please check your internet connection and try again.');
+                return;
+            }
+
+            // Check if client is initialized
+            if (!gapi.client || !gapi.client.sheets) {
+                alert('Google Sheets API is not initialized. Please wait a moment and try again.');
+                // Try to initialize
+                initGoogleSheets();
+                return;
+            }
+
+            try {
+                // Show loading message
+                const originalText = event.target.textContent;
+                event.target.textContent = '⏳ Syncing...';
+                event.target.disabled = true;
+
+                // Prepare data for Google Sheets
+                const sheetData = records.map(record => [
+                    record.date,
+                    record.driver,
+                    record.startPoint,
+                    record.startMileage,
+                    record.visitLocation,
+                    record.endPoint,
+                    record.endMileage,
+                    record.totalMiles,
+                    record.fuelPrice,
+                    record.receiptPrice
+                ]);
+
+                // Clear existing data (except headers)
+                await gapi.client.sheets.spreadsheets.values.clear({
+                    spreadsheetId: SHEET_ID,
+                    range: 'Sheet1!A2:J'
+                });
+
+                // Add new data
+                const response = await gapi.client.sheets.spreadsheets.values.update({
+                    spreadsheetId: SHEET_ID,
+                    range: 'Sheet1!A2',
+                    valueInputOption: 'RAW',
+                    resource: {
+                        values: sheetData
+                    }
+                });
+
+                alert(`✅ Success! ${records.length} records synced to Google Sheets`);
+                console.log('Sync successful:', response);
+
+            } catch (error) {
+                console.error('Sync failed:', error);
+                let errorMessage = 'Failed to sync data to Google Sheets.\n\n';
+                
+                if (error.status === 403) {
+                    errorMessage += 'Permission denied. Please check:\n1. Sheet is shared with proper permissions\n2. API key has correct restrictions';
+                } else if (error.status === 404) {
+                    errorMessage += 'Sheet not found. Please check your Sheet ID is correct.';
+                } else {
+                    errorMessage += 'Error: ' + (error.result?.error?.message || error.message);
+                }
+                
+                alert(errorMessage);
+            } finally {
+                // Reset button
+                event.target.textContent = originalText;
+                event.target.disabled = false;
+            }
         }
     </script>
 </body>
