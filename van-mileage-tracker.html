@@ -1,0 +1,774 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>EGS Van Mileage Tracker</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/3.9.1/chart.min.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            color: #333;
+        }
+
+        .container {
+            max-width: 420px;
+            margin: 0 auto;
+            background: #fff;
+            min-height: 100vh;
+            box-shadow: 0 0 20px rgba(0,0,0,0.1);
+            position: relative;
+        }
+
+        .header {
+            background: linear-gradient(135deg, #2c3e50, #3498db);
+            color: white;
+            padding: 20px;
+            text-align: center;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+
+        .header h1 {
+            font-size: 1.5rem;
+            margin-bottom: 5px;
+        }
+
+        .header p {
+            opacity: 0.9;
+            font-size: 0.9rem;
+        }
+
+        .nav-tabs {
+            display: flex;
+            background: #f8f9fa;
+            border-bottom: 1px solid #dee2e6;
+        }
+
+        .nav-tab {
+            flex: 1;
+            padding: 15px;
+            text-align: center;
+            background: none;
+            border: none;
+            cursor: pointer;
+            font-weight: 500;
+            color: #6c757d;
+            transition: all 0.3s ease;
+        }
+
+        .nav-tab.active {
+            background: #007bff;
+            color: white;
+        }
+
+        .tab-content {
+            display: none;
+            padding: 20px;
+            min-height: calc(100vh - 200px);
+        }
+
+        .tab-content.active {
+            display: block;
+        }
+
+        .form-group {
+            margin-bottom: 20px;
+        }
+
+        .form-group label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: 600;
+            color: #2c3e50;
+        }
+
+        .form-control {
+            width: 100%;
+            padding: 12px;
+            border: 2px solid #e9ecef;
+            border-radius: 10px;
+            font-size: 16px;
+            transition: border-color 0.3s ease;
+        }
+
+        .form-control:focus {
+            outline: none;
+            border-color: #007bff;
+            box-shadow: 0 0 0 3px rgba(0,123,255,0.25);
+        }
+
+        .btn {
+            width: 100%;
+            padding: 15px;
+            background: linear-gradient(135deg, #28a745, #20c997);
+            color: white;
+            border: none;
+            border-radius: 10px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: transform 0.2s ease;
+        }
+
+        .btn:hover {
+            transform: translateY(-2px);
+        }
+
+        .btn:active {
+            transform: translateY(0);
+        }
+
+        .record-item {
+            background: #f8f9fa;
+            border-radius: 10px;
+            padding: 15px;
+            margin-bottom: 15px;
+            border-left: 4px solid #007bff;
+        }
+
+        .record-date {
+            font-weight: 600;
+            color: #2c3e50;
+            margin-bottom: 5px;
+        }
+
+        .record-details {
+            font-size: 0.9rem;
+            color: #6c757d;
+            line-height: 1.4;
+        }
+
+        .stats-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 15px;
+            margin-bottom: 20px;
+        }
+
+        .stat-card {
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            color: white;
+            padding: 20px;
+            border-radius: 15px;
+            text-align: center;
+            box-shadow: 0 4px 15px rgba(102, 126, 234, 0.3);
+        }
+
+        .stat-value {
+            font-size: 1.8rem;
+            font-weight: 700;
+            margin-bottom: 5px;
+        }
+
+        .stat-label {
+            font-size: 0.8rem;
+            opacity: 0.9;
+        }
+
+        .chart-container {
+            background: white;
+            border-radius: 15px;
+            padding: 20px;
+            margin: 20px 0;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+
+        .chart-controls {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 20px;
+            overflow-x: auto;
+        }
+
+        .chart-control {
+            padding: 8px 16px;
+            background: #e9ecef;
+            border: none;
+            border-radius: 20px;
+            cursor: pointer;
+            white-space: nowrap;
+            font-size: 0.85rem;
+            transition: all 0.3s ease;
+        }
+
+        .chart-control.active {
+            background: #007bff;
+            color: white;
+        }
+
+        .no-records {
+            text-align: center;
+            color: #6c757d;
+            padding: 40px 20px;
+        }
+
+        .success-message {
+            background: #d4edda;
+            color: #155724;
+            padding: 15px;
+            border-radius: 10px;
+            margin-bottom: 20px;
+            border: 1px solid #c3e6cb;
+        }
+
+        @media (max-width: 480px) {
+            .container {
+                max-width: 100%;
+            }
+            
+            .stats-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>EGS Van Tracker</h1>
+            <p>Van Reg: LC74 FWO</p>
+        </div>
+
+        <div class="nav-tabs">
+            <button class="nav-tab active" onclick="switchTab('record')">Add Record</button>
+            <button class="nav-tab" onclick="switchTab('history')">History</button>
+            <button class="nav-tab" onclick="switchTab('dashboard')">Dashboard</button>
+        </div>
+
+        <!-- Record Tab -->
+        <div id="record" class="tab-content active">
+            <div id="successMessage" class="success-message" style="display: none;">
+                Record added successfully!
+            </div>
+            
+            <form id="mileageForm">
+                <div class="form-group">
+                    <label for="driver">Driver Name</label>
+                    <select id="driver" class="form-control" required>
+                        <option value="Ijaz">Ijaz</option>
+                    </select>
+                </div>
+
+                <div class="form-group">
+                    <label for="visitDate">Date of Visit</label>
+                    <input type="date" id="visitDate" class="form-control" required>
+                </div>
+
+                <div class="form-group">
+                    <label for="startPoint">Starting Point</label>
+                    <select id="startPoint" class="form-control" required>
+                        <option value="Home">Home</option>
+                        <option value="Other">Other (specify)</option>
+                    </select>
+                </div>
+
+                <div class="form-group" id="customStartGroup" style="display: none;">
+                    <label for="customStart">Custom Starting Point</label>
+                    <input type="text" id="customStart" class="form-control" placeholder="Enter starting location">
+                </div>
+
+                <div class="form-group">
+                    <label for="startMileage">Starting Mileage</label>
+                    <input type="number" id="startMileage" class="form-control" placeholder="Enter starting mileage" required>
+                </div>
+
+                <div class="form-group">
+                    <label for="visitLocation">Visit Location</label>
+                    <input type="text" id="visitLocation" class="form-control" placeholder="e.g., Burger King - Leeds Branch" required>
+                </div>
+
+                <div class="form-group">
+                    <label for="endPoint">End Point</label>
+                    <select id="endPoint" class="form-control" required>
+                        <option value="Home">Home</option>
+                        <option value="Other">Other (specify)</option>
+                    </select>
+                </div>
+
+                <div class="form-group" id="customEndGroup" style="display: none;">
+                    <label for="customEnd">Custom End Point</label>
+                    <input type="text" id="customEnd" class="form-control" placeholder="Enter end location">
+                </div>
+
+                <div class="form-group">
+                    <label for="endMileage">End Mileage</label>
+                    <input type="number" id="endMileage" class="form-control" placeholder="Enter end mileage" required>
+                </div>
+
+                <div class="form-group">
+                    <label for="fuelPrice">Fuel Cost (£)</label>
+                    <input type="number" id="fuelPrice" class="form-control" placeholder="Enter fuel cost" step="0.01">
+                </div>
+
+                <div class="form-group">
+                    <label for="receiptPrice">Receipt Total (£)</label>
+                    <input type="number" id="receiptPrice" class="form-control" placeholder="Enter receipt total" step="0.01">
+                </div>
+
+                <button type="submit" class="btn">Add Record</button>
+            </form>
+
+            <div style="margin-top: 30px;">
+                <button type="button" class="btn" onclick="addNewDriver()" style="background: linear-gradient(135deg, #17a2b8, #138496);">
+                    Add New Driver
+                </button>
+            </div>
+
+            <div style="margin-top: 15px;">
+                <button type="button" class="btn" onclick="syncToGoogleSheets()" style="background: linear-gradient(135deg, #28a745, #20c997);">
+                    📊 Sync to Google Sheets
+                </button>
+            </div>
+        </div>
+
+        <!-- History Tab -->
+        <div id="history" class="tab-content">
+            <div id="recordsList">
+                <div class="no-records">
+                    No records found. Add your first mileage record!
+                </div>
+            </div>
+        </div>
+
+        <!-- Dashboard Tab -->
+        <div id="dashboard" class="tab-content">
+            <div class="stats-grid">
+                <div class="stat-card">
+                    <div class="stat-value" id="totalVisits">0</div>
+                    <div class="stat-label">Total Visits</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-value" id="totalMileage">0</div>
+                    <div class="stat-label">Total Miles</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-value" id="totalFuel">£0</div>
+                    <div class="stat-label">Total Fuel Cost</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-value" id="avgCost">£0</div>
+                    <div class="stat-label">Avg Cost/Visit</div>
+                </div>
+            </div>
+
+            <div class="chart-controls">
+                <button class="chart-control active" onclick="updateChart('weekly')">Weekly</button>
+                <button class="chart-control" onclick="updateChart('monthly')">Monthly</button>
+                <button class="chart-control" onclick="updateChart('3monthly')">3 Monthly</button>
+                <button class="chart-control" onclick="updateChart('yearly')">Yearly</button>
+            </div>
+
+            <div class="chart-container">
+                <canvas id="mileageChart" width="400" height="200"></canvas>
+            </div>
+
+            <div class="chart-container">
+                <canvas id="fuelChart" width="400" height="200"></canvas>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://apis.google.com/js/api.js"></script>
+    <script>
+        // Global variables
+        let records = JSON.parse(localStorage.getItem('mileageRecords') || '[]');
+        let drivers = JSON.parse(localStorage.getItem('drivers') || '["Ijaz"]');
+        let mileageChart, fuelChart;
+
+        // Initialize the app
+        document.addEventListener('DOMContentLoaded', function() {
+            // Set today's date as default
+            document.getElementById('visitDate').valueAsDate = new Date();
+            
+            // Load drivers
+            loadDrivers();
+            
+            // Setup event listeners
+            setupEventListeners();
+            
+            // Load history and dashboard
+            loadHistory();
+            updateDashboard();
+            initCharts();
+            
+            // Initialize Google Sheets API after a short delay to ensure gapi is loaded
+            setTimeout(() => {
+                initGoogleSheets();
+            }, 2000);
+        });
+
+        function setupEventListeners() {
+            // Form submission
+            document.getElementById('mileageForm').addEventListener('submit', handleFormSubmit);
+            
+            // Custom location toggles
+            document.getElementById('startPoint').addEventListener('change', function() {
+                document.getElementById('customStartGroup').style.display = 
+                    this.value === 'Other' ? 'block' : 'none';
+            });
+            
+            document.getElementById('endPoint').addEventListener('change', function() {
+                document.getElementById('customEndGroup').style.display = 
+                    this.value === 'Other' ? 'block' : 'none';
+            });
+        }
+
+        function switchTab(tabName) {
+            // Hide all tabs
+            document.querySelectorAll('.tab-content').forEach(tab => {
+                tab.classList.remove('active');
+            });
+            
+            // Remove active class from all nav tabs
+            document.querySelectorAll('.nav-tab').forEach(tab => {
+                tab.classList.remove('active');
+            });
+            
+            // Show selected tab
+            document.getElementById(tabName).classList.add('active');
+            event.target.classList.add('active');
+            
+            // Update dashboard when switching to it
+            if (tabName === 'dashboard') {
+                updateDashboard();
+                updateChart('weekly');
+            }
+        }
+
+        function handleFormSubmit(e) {
+            e.preventDefault();
+            
+            const formData = new FormData(e.target);
+            const startPoint = document.getElementById('startPoint').value === 'Other' 
+                ? document.getElementById('customStart').value 
+                : document.getElementById('startPoint').value;
+            const endPoint = document.getElementById('endPoint').value === 'Other' 
+                ? document.getElementById('customEnd').value 
+                : document.getElementById('endPoint').value;
+            
+            const record = {
+                id: Date.now(),
+                driver: document.getElementById('driver').value,
+                date: document.getElementById('visitDate').value,
+                startPoint: startPoint,
+                startMileage: parseInt(document.getElementById('startMileage').value),
+                visitLocation: document.getElementById('visitLocation').value,
+                endPoint: endPoint,
+                endMileage: parseInt(document.getElementById('endMileage').value),
+                fuelPrice: parseFloat(document.getElementById('fuelPrice').value) || 0,
+                receiptPrice: parseFloat(document.getElementById('receiptPrice').value) || 0,
+                totalMiles: parseInt(document.getElementById('endMileage').value) - parseInt(document.getElementById('startMileage').value)
+            };
+            
+            records.push(record);
+            localStorage.setItem('mileageRecords', JSON.stringify(records));
+            
+            // Show success message
+            document.getElementById('successMessage').style.display = 'block';
+            setTimeout(() => {
+                document.getElementById('successMessage').style.display = 'none';
+            }, 3000);
+            
+            // Reset form
+            e.target.reset();
+            document.getElementById('visitDate').valueAsDate = new Date();
+            
+            // Update displays
+            loadHistory();
+            updateDashboard();
+        }
+
+        function loadDrivers() {
+            const driverSelect = document.getElementById('driver');
+            driverSelect.innerHTML = '';
+            drivers.forEach(driver => {
+                const option = document.createElement('option');
+                option.value = driver;
+                option.textContent = driver;
+                driverSelect.appendChild(option);
+            });
+        }
+
+        function addNewDriver() {
+            const driverName = prompt('Enter new driver name:');
+            if (driverName && !drivers.includes(driverName)) {
+                drivers.push(driverName);
+                localStorage.setItem('drivers', JSON.stringify(drivers));
+                loadDrivers();
+            }
+        }
+
+        function loadHistory() {
+            const recordsList = document.getElementById('recordsList');
+            
+            if (records.length === 0) {
+                recordsList.innerHTML = '<div class="no-records">No records found. Add your first mileage record!</div>';
+                return;
+            }
+            
+            const sortedRecords = records.sort((a, b) => new Date(b.date) - new Date(a.date));
+            recordsList.innerHTML = sortedRecords.map(record => `
+                <div class="record-item">
+                    <div class="record-date">${new Date(record.date).toLocaleDateString()}</div>
+                    <div class="record-details">
+                        <strong>Driver:</strong> ${record.driver}<br>
+                        <strong>Journey:</strong> ${record.startPoint} → ${record.visitLocation} → ${record.endPoint}<br>
+                        <strong>Miles:</strong> ${record.totalMiles} (${record.startMileage} - ${record.endMileage})<br>
+                        <strong>Fuel Cost:</strong> £${record.fuelPrice.toFixed(2)}<br>
+                        <strong>Receipt Total:</strong> £${record.receiptPrice.toFixed(2)}
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        function updateDashboard() {
+            const totalVisits = records.length;
+            const totalMileage = records.reduce((sum, record) => sum + record.totalMiles, 0);
+            const totalFuel = records.reduce((sum, record) => sum + record.fuelPrice, 0);
+            const avgCost = totalVisits > 0 ? totalFuel / totalVisits : 0;
+            
+            document.getElementById('totalVisits').textContent = totalVisits;
+            document.getElementById('totalMileage').textContent = totalMileage;
+            document.getElementById('totalFuel').textContent = `£${totalFuel.toFixed(2)}`;
+            document.getElementById('avgCost').textContent = `£${avgCost.toFixed(2)}`;
+        }
+
+        function initCharts() {
+            const mileageCtx = document.getElementById('mileageChart').getContext('2d');
+            const fuelCtx = document.getElementById('fuelChart').getContext('2d');
+            
+            mileageChart = new Chart(mileageCtx, {
+                type: 'bar',
+                data: {
+                    labels: [],
+                    datasets: [{
+                        label: 'Miles',
+                        data: [],
+                        backgroundColor: 'rgba(54, 162, 235, 0.5)',
+                        borderColor: 'rgba(54, 162, 235, 1)',
+                        borderWidth: 1
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    scales: {
+                        y: {
+                            beginAtZero: true
+                        }
+                    }
+                }
+            });
+            
+            fuelChart = new Chart(fuelCtx, {
+                type: 'line',
+                data: {
+                    labels: [],
+                    datasets: [{
+                        label: 'Fuel Cost (£)',
+                        data: [],
+                        backgroundColor: 'rgba(255, 99, 132, 0.2)',
+                        borderColor: 'rgba(255, 99, 132, 1)',
+                        borderWidth: 2,
+                        fill: true
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    scales: {
+                        y: {
+                            beginAtZero: true
+                        }
+                    }
+                }
+            });
+        }
+
+        function updateChart(period) {
+            // Update active button
+            document.querySelectorAll('.chart-control').forEach(btn => btn.classList.remove('active'));
+            event.target.classList.add('active');
+            
+            const data = getChartData(period);
+            
+            mileageChart.data.labels = data.labels;
+            mileageChart.data.datasets[0].data = data.mileage;
+            mileageChart.update();
+            
+            fuelChart.data.labels = data.labels;
+            fuelChart.data.datasets[0].data = data.fuel;
+            fuelChart.update();
+        }
+
+        function getChartData(period) {
+            const now = new Date();
+            let startDate, groupBy;
+            
+            switch(period) {
+                case 'weekly':
+                    startDate = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+                    groupBy = 'day';
+                    break;
+                case 'monthly':
+                    startDate = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+                    groupBy = 'week';
+                    break;
+                case '3monthly':
+                    startDate = new Date(now.getFullYear(), now.getMonth() - 3, 1);
+                    groupBy = 'month';
+                    break;
+                case 'yearly':
+                    startDate = new Date(now.getFullYear() - 1, 0, 1);
+                    groupBy = 'month';
+                    break;
+            }
+            
+            const filteredRecords = records.filter(record => 
+                new Date(record.date) >= startDate
+            );
+            
+            // Group records by period
+            const grouped = {};
+            filteredRecords.forEach(record => {
+                const date = new Date(record.date);
+                let key;
+                
+                if (groupBy === 'day') {
+                    key = date.toLocaleDateString();
+                } else if (groupBy === 'week') {
+                    const weekStart = new Date(date.setDate(date.getDate() - date.getDay()));
+                    key = weekStart.toLocaleDateString();
+                } else if (groupBy === 'month') {
+                    key = date.toLocaleDateString('en-US', { year: 'numeric', month: 'short' });
+                }
+                
+                if (!grouped[key]) {
+                    grouped[key] = { mileage: 0, fuel: 0 };
+                }
+                grouped[key].mileage += record.totalMiles;
+                grouped[key].fuel += record.fuelPrice;
+            });
+            
+            const labels = Object.keys(grouped).sort();
+            const mileage = labels.map(label => grouped[label].mileage);
+            const fuel = labels.map(label => grouped[label].fuel);
+            
+            return { labels, mileage, fuel };
+        }
+
+        // Google Sheets Configuration
+        const SHEET_ID = '12eG61Jv_H0YPnZ535FUu94d25u5maDL0HFRXHYSizzE';
+        const API_KEY = 'AIzaSyBpGBMbbRL08QGe3wFtSBKufMlvoxKzodI';
+        const RANGE = 'Sheet1!A:J';
+
+        // Initialize Google Sheets API
+        function initGoogleSheets() {
+            // Check if gapi is loaded
+            if (typeof gapi === 'undefined') {
+                console.log('Google API not loaded yet, waiting...');
+                setTimeout(initGoogleSheets, 1000); // Retry after 1 second
+                return;
+            }
+
+            gapi.load('client', async () => {
+                try {
+                    await gapi.client.init({
+                        apiKey: API_KEY,
+                        discoveryDocs: ['https://sheets.googleapis.com/$discovery/rest?version=v4']
+                    });
+                    console.log('Google Sheets API initialized successfully');
+                } catch (error) {
+                    console.error('Failed to initialize Google Sheets API:', error);
+                }
+            });
+        }
+
+        // Sync data to Google Sheets
+        async function syncToGoogleSheets() {
+            if (!SHEET_ID || SHEET_ID === 'YOUR_GOOGLE_SHEET_ID_HERE') {
+                alert('Please configure your Google Sheets API credentials first!\n\nSteps:\n1. Get Google Sheets API key\n2. Replace SHEET_ID and API_KEY in the code\n3. Make sure your sheet is shared properly');
+                return;
+            }
+
+            // Check if Google API is loaded
+            if (typeof gapi === 'undefined') {
+                alert('Google Sheets API is not loaded. Please check your internet connection and try again.');
+                return;
+            }
+
+            // Check if client is initialized
+            if (!gapi.client || !gapi.client.sheets) {
+                alert('Google Sheets API is not initialized. Please wait a moment and try again.');
+                // Try to initialize
+                initGoogleSheets();
+                return;
+            }
+
+            try {
+                // Show loading message
+                const originalText = event.target.textContent;
+                event.target.textContent = '⏳ Syncing...';
+                event.target.disabled = true;
+
+                // Prepare data for Google Sheets
+                const sheetData = records.map(record => [
+                    record.date,
+                    record.driver,
+                    record.startPoint,
+                    record.startMileage,
+                    record.visitLocation,
+                    record.endPoint,
+                    record.endMileage,
+                    record.totalMiles,
+                    record.fuelPrice,
+                    record.receiptPrice
+                ]);
+
+                // Clear existing data (except headers)
+                await gapi.client.sheets.spreadsheets.values.clear({
+                    spreadsheetId: SHEET_ID,
+                    range: 'Sheet1!A2:J'
+                });
+
+                // Add new data
+                const response = await gapi.client.sheets.spreadsheets.values.update({
+                    spreadsheetId: SHEET_ID,
+                    range: 'Sheet1!A2',
+                    valueInputOption: 'RAW',
+                    resource: {
+                        values: sheetData
+                    }
+                });
+
+                alert(`✅ Success! ${records.length} records synced to Google Sheets`);
+                console.log('Sync successful:', response);
+
+            } catch (error) {
+                console.error('Sync failed:', error);
+                let errorMessage = 'Failed to sync data to Google Sheets.\n\n';
+                
+                if (error.status === 403) {
+                    errorMessage += 'Permission denied. Please check:\n1. Sheet is shared with proper permissions\n2. API key has correct restrictions';
+                } else if (error.status === 404) {
+                    errorMessage += 'Sheet not found. Please check your Sheet ID is correct.';
+                } else {
+                    errorMessage += 'Error: ' + (error.result?.error?.message || error.message);
+                }
+                
+                alert(errorMessage);
+            } finally {
+                // Reset button
+                event.target.textContent = originalText;
+                event.target.disabled = false;
+            }
+        }
+    </script>
+</body>
+</html>
