@@ -429,12 +429,15 @@
 // Enhanced Google Sheets Integration
 // Add this to replace the basic sync function in your main HTML file
 
-class GoogleSheetsManager {
-    constructor(1X1QjSWdwyZ164whZ_jAZyJaG8NDlOIzPr5-tJV-OIYA, AIzaSyBpGBMbbRL08QGe3wFtSBKufMlvoxKzodI) {
-        this.sheetId = sheetId;
-        this.apiKey = apiKey;
-        this.baseUrl = 'https://sheets.googleapis.com/v4/spreadsheets';
-    }
+// Instead of the class, you could use:
+let SHEET_ID = "1X1QjSWdwyZ164whZ_jAZyJaG8NDlOIzPr5-tJV-OIYA";
+let API_KEY = "AIzaSyBpGBMbbRL08QGe3wFtSBKufMlvoxKzodI";
+
+async function syncToGoogleSheets() {
+    // Direct function without class
+    const url = `https://sheets.googleapis.com/v4/spreadsheets/${SHEET_ID}/values/A:A:append?key=${API_KEY}`;
+    // ... rest of sync logic
+}
 
     async initializeSheet() {
         try {
