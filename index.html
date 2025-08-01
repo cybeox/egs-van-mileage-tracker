@@ -426,361 +426,227 @@
 
     <script>
         // Configuration
-        const GOOGLE_SHEETS_ID = '1X1QjSWdwyZ164whZ_jAZyJaG8NDlOIzPr5-tJV-OIYA';
-        const GOOGLE_API_KEY = 'AIzaSyBpGBMbbRL08QGe3wFtSBKufMlvoxKzodI';
+// Enhanced Google Sheets Integration
+// Add this to replace the basic sync function in your main HTML file
 
-        // Global variables
-        let mileageData = [];
-        let currentPeriod = 'week';
-        let mileageChart = null;
+class GoogleSheetsManager {
+    constructor(1X1QjSWdwyZ164whZ_jAZyJaG8NDlOIzPr5-tJV-OIYA, AIzaSyBpGBMbbRL08QGe3wFtSBKufMlvoxKzodI) {
+        this.sheetId = sheetId;
+        this.apiKey = apiKey;
+        this.baseUrl = 'https://sheets.googleapis.com/v4/spreadsheets';
+    }
 
-        // Initialize app
-        document.addEventListener('DOMContentLoaded', function() {
-            initializeApp();
-            loadStoredData();
-            updateCurrentDate();
-            setupFormHandlers();
+    async initializeSheet() {
+        try {
+            // Check if sheet exists and has proper headers
+            const response = await this.getSheetData('A1:J1');
+            
+            if (!response.values || response.values.length === 0) {
+                // Sheet is empty, add headers
+                await this.addHeaders();
+            }
+            return true;
+        } catch (error) {
+            console.error('Failed to initialize sheet:', error);
+            return false;
+        }
+    }
+
+    async addHeaders() {
+        const headers = [
+            'Date', 'Start Point', 'Start Mileage', 'End Mileage', 
+            'Total Miles', 'Fuel Cost', 'Fuel Locations', 'Trip Summary', 
+            'Timestamp', 'ID'
+        ];
+
+        return this.appendData([headers]);
+    }
+
+    async getSheetData(range = 'A:J') {
+        const url = `${this.baseUrl}/${this.sheetId}/values/${range}?key=${this.apiKey}`;
+        
+        const response = await fetch(url);
+        if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+        }
+        
+        return await response.json();
+    }
+
+    async appendData(values) {
+        const url = `${this.baseUrl}/${this.sheetId}/values/A:A:append?valueInputOption=RAW&key=${this.apiKey}`;
+        
+        const response = await fetch(url, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                values: values
+            })
         });
 
-        function initializeApp() {
-            // Set today's date
-            document.getElementById('date').value = new Date().toISOString().split('T')[0];
+        if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
         }
 
-        function updateCurrentDate() {
-            const now = new Date();
-            document.getElementById('currentDate').textContent = now.toLocaleDateString('en-GB', {
-                weekday: 'long',
-                year: 'numeric',
-                month: 'long',
-                day: 'numeric'
-            });
-        }
+        return await response.json();
+    }
 
-        function setupFormHandlers() {
-            // Auto-calculate total miles
-            const startMileage = document.getElementById('startMileage');
-            const endMileage = document.getElementById('endMileage');
-            const totalMiles = document.getElementById('totalMiles');
+    async syncMileageData(mileageData) {
+        try {
+            showSyncStatus('Initializing Google Sheets...', false);
+            
+            // Initialize sheet with headers if needed
+            await this.initializeSheet();
+            
+            showSyncStatus('Syncing data to Google Sheets...', false);
+            
+            // Get existing data to avoid duplicates
+            const existingData = await this.getSheetData();
+            const existingIds = existingData.values ? 
+                existingData.values.slice(1).map(row => row[9]) : [];
+            
+            // Filter out data that already exists
+            const newData = mileageData.filter(entry => 
+                !existingIds.includes(entry.id.toString())
+            );
 
-            function calculateTotalMiles() {
-                const start = parseFloat(startMileage.value) || 0;
-                const end = parseFloat(endMileage.value) || 0;
-                totalMiles.value = Math.max(0, end - start).toFixed(1);
+            if (newData.length === 0) {
+                showSyncStatus('All data is already synced!', false);
+                return true;
             }
 
-            startMileage.addEventListener('input', calculateTotalMiles);
-            endMileage.addEventListener('input', calculateTotalMiles);
+            // Prepare data for sheets
+            const sheetRows = newData.map(entry => [
+                entry.date,
+                entry.startPoint,
+                entry.startMileage,
+                entry.endMileage,
+                entry.totalMiles,
+                entry.totalFuelCost,
+                entry.fuelCosts.map(f => `${f.location}: £${f.amount}`).join('; '),
+                entry.tripSummary,
+                entry.timestamp,
+                entry.id
+            ]);
 
-            // Form submission
-            document.getElementById('mileageForm').addEventListener('submit', handleFormSubmit);
-        }
-
-        function handleFormSubmit(e) {
-            e.preventDefault();
+            // Append new data
+            await this.appendData(sheetRows);
             
-            const formData = {
-                id: Date.now(),
-                date: document.getElementById('date').value,
-                startPoint: document.getElementById('startPoint').value,
-                startMileage: parseFloat(document.getElementById('startMileage').value),
-                endMileage: parseFloat(document.getElementById('endMileage').value),
-                totalMiles: parseFloat(document.getElementById('totalMiles').value),
-                tripSummary: document.getElementById('tripSummary').value,
-                fuelCosts: getFuelCosts(),
-                totalFuelCost: getFuelCosts().reduce((sum, fuel) => sum + fuel.amount, 0),
-                timestamp: new Date().toISOString()
+            showSyncStatus(`Successfully synced ${newData.length} entries to Google Sheets!`, false);
+            return true;
+
+        } catch (error) {
+            console.error('Sync error:', error);
+            showSyncStatus('Error syncing to Google Sheets. Please check your configuration.', true);
+            return false;
+        }
+    }
+
+    async downloadSheetData() {
+        try {
+            const data = await this.getSheetData();
+            if (!data.values || data.values.length <= 1) {
+                showSyncStatus('No data found in Google Sheets', true);
+                return [];
+            }
+
+            // Convert sheet data back to app format
+            const headers = data.values[0];
+            const rows = data.values.slice(1);
+
+            return rows.map(row => ({
+                id: row[9] || Date.now() + Math.random(),
+                date: row[0],
+                startPoint: row[1],
+                startMileage: parseFloat(row[2]) || 0,
+                endMileage: parseFloat(row[3]) || 0,
+                totalMiles: parseFloat(row[4]) || 0,
+                totalFuelCost: parseFloat(row[5]) || 0,
+                fuelCosts: this.parseFuelCosts(row[6] || ''),
+                tripSummary: row[7] || '',
+                timestamp: row[8] || new Date().toISOString()
+            }));
+
+        } catch (error) {
+            console.error('Download error:', error);
+            showSyncStatus('Error downloading from Google Sheets', true);
+            return [];
+        }
+    }
+
+    parseFuelCosts(fuelString) {
+        if (!fuelString) return [];
+        
+        return fuelString.split(';').map(item => {
+            const parts = item.trim().split(': £');
+            return {
+                location: parts[0] || '',
+                amount: parseFloat(parts[1]) || 0
             };
+        }).filter(item => item.amount > 0);
+    }
+}
 
-            // Add to stored data
-            mileageData.push(formData);
-            saveDataToStorage();
-            
-            // Reset form
-            document.getElementById('mileageForm').reset();
-            document.getElementById('date').value = new Date().toISOString().split('T')[0];
-            resetFuelEntries();
-            
-            // Update displays
-            updateDashboard();
-            updateHistory();
-            
-            showSyncStatus('Entry saved successfully!', false);
+// Enhanced sync functions to replace in your main code
+let sheetsManager;
+
+function initializeGoogleSheets() {
+    sheetsManager = new GoogleSheetsManager(GOOGLE_SHEETS_ID, GOOGLE_API_KEY);
+}
+
+async function syncToGoogleSheets() {
+    if (!sheetsManager) {
+        initializeGoogleSheets();
+    }
+    
+    await sheetsManager.syncMileageData(mileageData);
+}
+
+async function downloadFromGoogleSheets() {
+    if (!sheetsManager) {
+        initializeGoogleSheets();
+    }
+    
+    showSyncStatus('Downloading data from Google Sheets...', false);
+    const sheetData = await sheetsManager.downloadSheetData();
+    
+    if (sheetData.length > 0) {
+        // Merge with existing data (avoid duplicates)
+        const existingIds = mileageData.map(entry => entry.id);
+        const newEntries = sheetData.filter(entry => !existingIds.includes(entry.id));
+        
+        mileageData = [...mileageData, ...newEntries];
+        saveDataToStorage();
+        updateDashboard();
+        updateHistory();
+        
+        showSyncStatus(`Downloaded ${newEntries.length} new entries from Google Sheets!`, false);
+    }
+}
+
+// Auto-sync feature
+function enableAutoSync(intervalMinutes = 30) {
+    setInterval(async () => {
+        if (mileageData.length > 0) {
+            await syncToGoogleSheets();
         }
+    }, intervalMinutes * 60 * 1000);
+}
 
-        function getFuelCosts() {
-            const fuelEntries = document.querySelectorAll('.fuel-entry');
-            const costs = [];
-            
-            fuelEntries.forEach(entry => {
-                const amount = parseFloat(entry.querySelector('.fuel-cost').value) || 0;
-                const location = entry.querySelector('.fuel-location').value || '';
-                
-                if (amount > 0) {
-                    costs.push({ amount, location });
-                }
-            });
-            
-            return costs;
-        }
-
-        function addFuelEntry() {
-            const container = document.getElementById('fuelEntries');
-            const newEntry = document.createElement('div');
-            newEntry.className = 'fuel-entry';
-            newEntry.innerHTML = `
-                <input type="number" step="0.01" placeholder="Amount (£)" class="fuel-cost">
-                <input type="text" placeholder="Location" class="fuel-location">
-                <button type="button" class="btn btn-secondary btn-small" onclick="removeFuelEntry(this)">×</button>
-            `;
-            container.insertBefore(newEntry, container.lastElementChild);
-        }
-
-        function removeFuelEntry(button) {
-            const entries = document.querySelectorAll('.fuel-entry');
-            if (entries.length > 1) {
-                button.parentElement.remove();
-            }
-        }
-
-        function resetFuelEntries() {
-            const container = document.getElementById('fuelEntries');
-            const entries = container.querySelectorAll('.fuel-entry');
-            
-            // Keep only the first entry and clear its values
-            entries.forEach((entry, index) => {
-                if (index === 0) {
-                    entry.querySelector('.fuel-cost').value = '';
-                    entry.querySelector('.fuel-location').value = '';
-                } else {
-                    entry.remove();
-                }
-            });
-        }
-
-        function switchTab(tabName) {
-            // Update tab buttons
-            document.querySelectorAll('.nav-tab').forEach(tab => tab.classList.remove('active'));
-            event.target.classList.add('active');
-            
-            // Update tab content
-            document.querySelectorAll('.tab-content').forEach(content => content.classList.add('hidden'));
-            document.getElementById(tabName + '-tab').classList.remove('hidden');
-            
-            // Update dashboard when switching to it
-            if (tabName === 'dashboard') {
-                updateDashboard();
-            } else if (tabName === 'history') {
-                updateHistory();
-            }
-        }
-
-        function changePeriod(period) {
-            currentPeriod = period;
-            document.querySelectorAll('.period-btn').forEach(btn => btn.classList.remove('active'));
-            event.target.classList.add('active');
-            updateDashboard();
-        }
-
-        function updateDashboard() {
-            const filteredData = getFilteredData(currentPeriod);
-            updateStats(filteredData);
-            updateChart(filteredData);
-        }
-
-        function getFilteredData(period) {
-            const now = new Date();
-            const filterDate = new Date();
-            
-            switch(period) {
-                case 'week':
-                    filterDate.setDate(now.getDate() - 7);
-                    break;
-                case 'month':
-                    filterDate.setMonth(now.getMonth() - 1);
-                    break;
-                case 'year':
-                    filterDate.setFullYear(now.getFullYear() - 1);
-                    break;
-            }
-            
-            return mileageData.filter(entry => new Date(entry.date) >= filterDate);
-        }
-
-        function updateStats(data) {
-            const totalMiles = data.reduce((sum, entry) => sum + entry.totalMiles, 0);
-            const totalFuel = data.reduce((sum, entry) => sum + entry.totalFuelCost, 0);
-            const avgMiles = data.length > 0 ? totalMiles / data.length : 0;
-            
-            document.getElementById('totalMilesStat').textContent = totalMiles.toFixed(1);
-            document.getElementById('totalFuelStat').textContent = '£' + totalFuel.toFixed(2);
-            document.getElementById('avgMilesStat').textContent = avgMiles.toFixed(1);
-            document.getElementById('tripCountStat').textContent = data.length;
-        }
-
-        function updateChart(data) {
-            const ctx = document.getElementById('mileageChart').getContext('2d');
-            
-            if (mileageChart) {
-                mileageChart.destroy();
-            }
-            
-            const chartData = data.map(entry => ({
-                x: entry.date,
-                y: entry.totalMiles
-            })).sort((a, b) => new Date(a.x) - new Date(b.x));
-            
-            mileageChart = new Chart(ctx, {
-                type: 'line',
-                data: {
-                    datasets: [{
-                        label: 'Daily Miles',
-                        data: chartData,
-                        borderColor: '#4a90e2',
-                        backgroundColor: 'rgba(74, 144, 226, 0.1)',
-                        tension: 0.4,
-                        fill: true
-                    }]
-                },
-                options: {
-                    responsive: true,
-                    maintainAspectRatio: false,
-                    scales: {
-                        x: {
-                            type: 'time',
-                            time: {
-                                unit: 'day'
-                            }
-                        },
-                        y: {
-                            beginAtZero: true
-                        }
-                    },
-                    plugins: {
-                        legend: {
-                            display: false
-                        }
-                    }
-                }
-            });
-        }
-
-        function updateHistory() {
-            const container = document.getElementById('tripList');
-            const sortedData = [...mileageData].sort((a, b) => new Date(b.date) - new Date(a.date));
-            
-            container.innerHTML = '';
-            
-            sortedData.slice(0, 20).forEach(entry => {
-                const tripItem = document.createElement('div');
-                tripItem.className = 'trip-item';
-                tripItem.innerHTML = `
-                    <div class="date">${new Date(entry.date).toLocaleDateString('en-GB')}</div>
-                    <div class="details">
-                        ${entry.startPoint} → ${entry.totalMiles} miles → £${entry.totalFuelCost.toFixed(2)}<br>
-                        ${entry.tripSummary || 'No summary provided'}
-                    </div>
-                `;
-                container.appendChild(tripItem);
-            });
-        }
-
-        function saveDataToStorage() {
-            const data = {
-                mileageData: mileageData,
-                lastUpdated: new Date().toISOString()
-            };
-            // In a real implementation, this would use localStorage
-            // For this demo, we'll keep data in memory only
-        }
-
-        function loadStoredData() {
-            // In a real implementation, this would load from localStorage
-            // For this demo, we'll start with empty data
-            mileageData = [];
-        }
-
-        async function syncToGoogleSheets() {
-            showSyncStatus('Syncing to Google Sheets...', false);
-            
-            try {
-                // This is a simplified example - in production you'd need proper OAuth
-                const response = await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${GOOGLE_SHEETS_ID}/values/Sheet1!A:J?key=${GOOGLE_API_KEY}`);
-                
-                if (response.ok) {
-                    showSyncStatus('Successfully synced to Google Sheets!', false);
-                } else {
-                    throw new Error('Failed to sync');
-                }
-            } catch (error) {
-                showSyncStatus('Error syncing to Google Sheets. Please check your connection.', true);
-                console.error('Sync error:', error);
-            }
-        }
-
-        function showSyncStatus(message, isError) {
-            const statusEl = document.getElementById('syncStatus');
-            statusEl.textContent = message;
-            statusEl.className = isError ? 'sync-status error' : 'sync-status';
-            statusEl.classList.remove('hidden');
-            
-            setTimeout(() => {
-                statusEl.classList.add('hidden');
-            }, 3000);
-        }
-
-        function exportToExcel() {
-            const ws = XLSX.utils.json_to_sheet(mileageData);
-            const wb = XLSX.utils.book_new();
-            XLSX.utils.book_append_sheet(wb, ws, 'Mileage Data');
-            XLSX.writeFile(wb, `van-mileage-${new Date().toISOString().split('T')[0]}.xlsx`);
-        }
-
-        function exportToCSV() {
-            const headers = ['Date', 'Start Point', 'Start Mileage', 'End Mileage', 'Total Miles', 'Fuel Cost', 'Trip Summary'];
-            const csvContent = [
-                headers.join(','),
-                ...mileageData.map(entry => [
-                    entry.date,
-                    entry.startPoint,
-                    entry.startMileage,
-                    entry.endMileage,
-                    entry.totalMiles,
-                    entry.totalFuelCost,
-                    `"${entry.tripSummary}"`
-                ].join(','))
-            ].join('\n');
-            
-            const blob = new Blob([csvContent], { type: 'text/csv' });
-            const url = window.URL.createObjectURL(blob);
-            const a = document.createElement('a');
-            a.href = url;
-            a.download = `van-mileage-${new Date().toISOString().split('T')[0]}.csv`;
-            a.click();
-            window.URL.revokeObjectURL(url);
-        }
-
-        function exportToPDF() {
-            const { jsPDF } = window.jspdf;
-            const doc = new jsPDF();
-            
-            doc.setFontSize(16);
-            doc.text('Van Mileage Report', 20, 20);
-            
-            let yPosition = 40;
-            mileageData.forEach(entry => {
-                doc.setFontSize(10);
-                doc.text(`Date: ${entry.date}`, 20, yPosition);
-                doc.text(`Miles: ${entry.totalMiles}`, 20, yPosition + 5);
-                doc.text(`Fuel: £${entry.totalFuelCost.toFixed(2)}`, 20, yPosition + 10);
-                doc.text(`Summary: ${entry.tripSummary}`, 20, yPosition + 15);
-                yPosition += 25;
-                
-                if (yPosition > 270) {
-                    doc.addPage();
-                    yPosition = 20;
-                }
-            });
+// Call this when the app initializes
+document.addEventListener('DOMContentLoaded', function() {
+    // ... existing initialization code ...
+    
+    initializeGoogleSheets();
+    
+    // Enable auto-sync every 30 minutes
+    enableAutoSync(30);
+    
+    // Download existing data on startup
+    setTimeout(downloadFromGoogleSheets, 2000);
+});
             
             doc.save(`van-mileage-${new Date().toISOString().split('T')[0]}.pdf`);
         }
